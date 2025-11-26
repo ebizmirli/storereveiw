@@ -324,7 +324,7 @@ const TRANSLATIONS = {
     placeholder: "App Store veya Play Store linki yapıştırın...",
     analyzeBtn: "Analiz Et",
     loading: "Veriler toplanıyor ve analiz ediliyor...",
-    errorGeneric: "Veri çekilemedi. Linki kontrol edin.",
+    errorGeneric: "Veri çekilemedi. Linki kontrol edin veya daha sonra tekrar deneyin.",
     summary: "Detaylı Analiz Raporu",
     recommendations: "Stratejik Öneriler",
     sentimentDist: "Duygu Dağılımı",
@@ -347,7 +347,7 @@ const TRANSLATIONS = {
     placeholder: "Paste App Store or Play Store link...",
     analyzeBtn: "Analyze",
     loading: "Collecting data and analyzing...",
-    errorGeneric: "Failed to fetch data. Check the link.",
+    errorGeneric: "Failed to fetch data. Please check the link or try again later.",
     summary: "Detailed Analysis Report",
     recommendations: "Strategic Recommendations",
     sentimentDist: "Sentiment Distribution",
@@ -397,7 +397,43 @@ export default function AppAnalysis() {
 
   const t = TRANSLATIONS[lang];
 
-  // --- LOGIC: FETCH ---
+  // --- LOGIC: FETCH WITH FALLBACK ---
+
+  // YENİ EKLENEN FONKSİYON: Proxy Yedekleme Sistemi
+  const fetchWithFallback = async (targetUrl, type = 'json') => {
+    // Öncelik sırasına göre proxy listesi
+    const proxies = [
+      // 1. AllOrigins Raw (Genelde en stabil)
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+      // 2. Corsproxy.io (Yedek)
+      `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+      // 3. ThingProxy (Ek Yedek)
+      `https://thingproxy.freeboard.io/fetch/${targetUrl}`
+    ];
+
+    // Sırayla deniyoruz
+    for (const proxyUrl of proxies) {
+      try {
+        // Önbellekleme sorunlarını aşmak için timestamp ekliyoruz
+        const urlWithTimestamp = `${proxyUrl}${proxyUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+        const res = await fetch(urlWithTimestamp);
+        
+        if (!res.ok) {
+          console.warn(`Proxy failed (Status ${res.status}): ${proxyUrl}`);
+          continue; // Bir sonraki proxy'ye geç
+        }
+
+        if (type === 'json') return await res.json();
+        if (type === 'text') return await res.text();
+        
+      } catch (e) {
+        console.warn(`Proxy connection failed: ${proxyUrl}`, e);
+        // Hata olursa döngü devam eder ve bir sonraki proxy denenir
+      }
+    }
+    // Eğer hepsi başarısız olursa
+    throw new Error("Tüm proxy servisleri başarısız oldu.");
+  };
 
   const handleAnalyze = async () => {
     if (!url) return;
@@ -408,7 +444,7 @@ export default function AppAnalysis() {
     setFilteredReviews([]);
     setAnalysis(null);
     setShowAllReviews(false);
-    setDateRange({ start: '', end: '' }); // Reset filters
+    setDateRange({ start: '', end: '' }); 
 
     try {
       let platform = '';
@@ -427,26 +463,16 @@ export default function AppAnalysis() {
 
       if (platform === 'ios') {
         const lookupUrl = `https://itunes.apple.com/lookup?id=${id}`;
-        // DEĞİŞİKLİK 1: Daha güvenilir bir proxy (corsproxy.io) kullanıyoruz.
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(lookupUrl)}`;
         
-        const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error('Proxy Error');
-        
-        // DEĞİŞİKLİK 2: AllOrigins JSON wrapper'ı kaldırıldı, doğrudan JSON alıyoruz.
-        const json = await response.json(); 
+        // YENİ: fetchWithFallback kullanımı
+        const json = await fetchWithFallback(lookupUrl, 'json');
         
         if (json.resultCount === 0) throw new Error("App Not Found");
         const info = json.results[0];
 
         // Fetch Reviews (RSS)
         const rssUrl = `https://itunes.apple.com/tr/rss/customerreviews/id=${id}/sortBy=mostRecent/json`;
-        const rssProxy = `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`;
-        
-        const rssRes = await fetch(rssProxy);
-        if (!rssRes.ok) throw new Error('RSS Proxy Error');
-        
-        const rssJson = await rssRes.json();
+        const rssJson = await fetchWithFallback(rssUrl, 'json');
         
         const entry = rssJson.feed.entry || [];
         const entries = Array.isArray(entry) ? entry : [entry];
@@ -481,13 +507,9 @@ export default function AppAnalysis() {
       } else {
         // Android Simple Scrape
         const playUrl = `https://play.google.com/store/apps/details?id=${id}&hl=${lang}`;
-        // Android için de aynı proxy'yi kullanıyoruz, ancak dönen değer HTML (text).
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(playUrl)}`;
         
-        const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error('Android Proxy Error');
-        
-        const html = await response.text(); // AllOrigins wrapper olmadığı için doğrudan text alıyoruz
+        // YENİ: fetchWithFallback kullanımı (text olarak)
+        const html = await fetchWithFallback(playUrl, 'text');
 
         const nameMatch = html.match(/<h1 itemprop="name">([^<]+)<\/h1>/) || html.match(/<h1[^>]*>([^<]+)<\/h1>/);
         const iconMatch = html.match(/<img[^>]+src="([^"]+)"[^>]+alt="Cover art"[^>]*>/) || html.match(/<img[^>]+src="([^"]+)"[^>]+class="T75a adNLdk"[^>]*>/);
