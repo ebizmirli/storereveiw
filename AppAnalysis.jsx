@@ -3,7 +3,8 @@ import {
   Search, Globe, Star, BarChart2, MessageSquare, AlertTriangle, 
   CheckCircle, Smartphone, Share2, Loader2, Info, ArrowLeft, 
   Lightbulb, List, TrendingUp, ShieldAlert, Cpu, Download, 
-  Activity, Users, Copy, Check, ChevronDown, MessageCircle, Calendar, Filter
+  Activity, Users, Copy, Check, ChevronDown, MessageCircle, Calendar, Filter,
+  ImageIcon, FileText, Layers
 } from 'lucide-react';
 
 // --- SABİTLER ---
@@ -43,7 +44,11 @@ const TRANSLATIONS = {
     trendChart: "Puan Trendi",
     distChart: "Yıldız Dağılımı",
     applyFilter: "Uygula",
-    presets: { week: "Son 1 Hafta", month: "Son 1 Ay", year: "Son 1 Yıl", all: "Tümü" }
+    presets: { week: "Son 1 Hafta", month: "Son 1 Ay", year: "Son 1 Yıl", all: "Tümü" },
+    appDetails: "Uygulama Vitrini",
+    screenshots: "Ekran Görüntüleri",
+    whatsNew: "Yenilikler",
+    version: "Sürüm"
   },
   en: {
     heroTitle: "App Review Analytics",
@@ -66,7 +71,11 @@ const TRANSLATIONS = {
     trendChart: "Rating Trend",
     distChart: "Star Distribution",
     applyFilter: "Apply",
-    presets: { week: "Last Week", month: "Last Month", year: "Last Year", all: "All Time" }
+    presets: { week: "Last Week", month: "Last Month", year: "Last Year", all: "All Time" },
+    appDetails: "App Showcase",
+    screenshots: "Screenshots",
+    whatsNew: "What's New",
+    version: "Version"
   }
 };
 
@@ -287,46 +296,97 @@ const DistributionChart = ({ reviews }) => {
   );
 };
 
-// --- CEVAP OLUŞTURUCU ---
+// --- CEVAP OLUŞTURUCU (KİŞİSELLEŞTİRİLMİŞ) ---
 
 const TONES = { formal: { tr: "Resmi", en: "Formal" }, casual: { tr: "Samimi", en: "Casual" }, support: { tr: "Destek", en: "Supportive" } };
 
 const generateAIResponse = (review, tone, lang) => {
   const isPositive = review.rating >= 4;
   const content = (review.title + " " + review.content).toLowerCase();
-  const hasBug = ['hata', 'bug', 'crash', 'açılmıyor'].some(k => content.includes(k));
-  const hasMoney = ['para', 'ücret', 'pahalı'].some(k => content.includes(k));
   
+  // Bağlam Analizi
+  const context = {
+    bug: ['hata', 'bug', 'crash', 'açılmıyor', 'donuyor', 'kapanıyor'].some(k => content.includes(k)),
+    login: ['giriş', 'login', 'şifre', 'hesap', 'password'].some(k => content.includes(k)),
+    update: ['güncelleme', 'update', 'yeni sürüm', 'bozuldu'].some(k => content.includes(k)),
+    ui: ['tasarım', 'arayüz', 'renk', 'buton', 'ui', 'design'].some(k => content.includes(k)),
+    money: ['para', 'ücret', 'pahalı', 'abonelik'].some(k => content.includes(k)),
+    ads: ['reklam', 'video', 'reklamlar'].some(k => content.includes(k))
+  };
+
+  const authorName = review.author !== "User" ? review.author : (lang === 'tr' ? 'Kullanıcımız' : 'User');
+
   const templates = {
     tr: {
       formal: { 
-        pos: `Sayın ${review.author},\n\nDeğerli yorumlarınız için teşekkür ederiz.`,
-        neg: `Sayın ${review.author},\n\nYaşadığınız sorun için üzgünüz.`,
-        bug: `Sayın ${review.author},\n\nTeknik hata bildiriminiz için teşekkürler, inceliyoruz.`
+        pos: `Sayın ${authorName},\n\nGüzel yorumlarınız ve desteğiniz için çok teşekkür ederiz. Sizlere daha iyi hizmet verebilmek için çalışmaya devam ediyoruz.`,
+        neg: `Sayın ${authorName},\n\nYaşadığınız olumsuz deneyimden dolayı üzgünüz. Geri bildiriminizi dikkate aldık.`,
+        bug: `Sayın ${authorName},\n\nBahsettiğiniz teknik aksaklık (hata/donma) için üzgünüz. Ekibimiz konuyu inceliyor.`,
+        login: `Sayın ${authorName},\n\nHesap erişimi ve giriş süreçlerinde yaşadığınız sorunu çözmek için lütfen destek ekibimize ulaşın.`,
+        update: `Sayın ${authorName},\n\nSon güncelleme ile yaşadığınız uyumsuzluk için özür dileriz. Hızlı bir düzeltme üzerinde çalışıyoruz.`,
+        ui: `Sayın ${authorName},\n\nTasarım ile ilgili görüşlerinizi ürün ekibimize ilettik. Geri bildiriminiz bizim için değerli.`,
+        money: `Sayın ${authorName},\n\nFiyatlandırma politikamızla ilgili görüşleriniz için teşekkürler. Konuyu değerlendireceğiz.`
       },
       casual: {
-        pos: `Selam ${review.author}! 🚀 Harika yorumun için sağ ol!`,
-        neg: `Selam, bu durum can sıkıcı olmalı. Hemen ilgileniyoruz.`,
-        bug: `Selam! Hata bildirimini aldık, ekip bakıyor! 🛠️`
+        pos: `Selam ${authorName}! 🚀 Harika yorumun için çok sağ ol! Beğenmene sevindik.`,
+        neg: `Selam ${authorName}, bu durum can sıkıcı olmalı. Telafi etmek isteriz.`,
+        bug: `Selam! Hata bildirimini aldık, kodlara daldık bile! 🛠️ En kısa sürede düzelteceğiz.`,
+        login: `Selam! Giriş yaparken sorun mu yaşıyorsun? 🔐 Hemen destek'e yaz, halledelim.`,
+        update: `Selam! Güncelleme biraz sorunlu olmuş gibi. 😔 Merak etme, toparlıyoruz.`,
+        ui: `Selam! Arayüz hakkındaki fikrin süper. 🎨 Notlarımızı aldık!`,
+        money: `Selam! Fiyatlar konusunda haklı olabilirsin. 💸 Ekiple konuşacağız.`
       },
       support: {
-        pos: `Merhaba, geri bildiriminiz bizim için çok değerli.`,
-        neg: `Merhaba, destek ekibimizle iletişime geçerseniz yardımcı olabiliriz.`,
-        bug: `Merhaba, bu hatayı düzeltmek için çalışıyoruz. Lütfen güncel kalın.`
+        pos: `Merhaba, geri bildiriminiz ekibimizi çok motive etti. Teşekkürler!`,
+        neg: `Merhaba, sorununuzu çözmek için buradayız. Lütfen detayları paylaşın.`,
+        bug: `Merhaba, bu teknik hatanın farkındayız. Lütfen uygulamanızı güncel tutun.`,
+        login: `Merhaba, hesap güvenliğiniz için şifrenizi sıfırlamayı denediniz mi? Yardımcı olabiliriz.`,
+        update: `Merhaba, son sürümdeki bu aksaklık için üzgünüz. Düzeltme yolda.`,
+        ui: `Merhaba, kullanıcı deneyimini iyileştirmek için çalışıyoruz. Öneriniz için teşekkürler.`,
+        money: `Merhaba, size en uygun paketi bulmak için destek ekibimize yazabilirsiniz.`
       }
     },
     en: {
-      formal: { pos: "Dear User, Thank you.", neg: "Dear User, We apologize.", bug: "Dear User, We are fixing this." },
-      casual: { pos: "Thanks! 🚀", neg: "So sorry! 😔", bug: "Thanks for the heads up! 🛠️" },
-      support: { pos: "We appreciate your feedback.", neg: "Please contact support.", bug: "Update coming soon." }
+      formal: { 
+        pos: `Dear ${authorName}, Thank you for your kind words.`, 
+        neg: `Dear ${authorName}, We apologize for the inconvenience.`,
+        bug: `Dear ${authorName}, We are investigating the technical issue you reported.`,
+        login: `Dear ${authorName}, Please contact support for login issues.`,
+        update: `Dear ${authorName}, We are working on a fix for the update issue.`,
+        ui: `Dear ${authorName}, Thank you for your feedback on the design.`,
+        money: `Dear ${authorName}, We have noted your feedback regarding pricing.`
+      },
+      casual: { 
+        pos: `Hey ${authorName}! 🚀 Thanks a bunch!`, 
+        neg: `Hey, so sorry about that! 😔`,
+        bug: `Hey! Thanks for catching that bug! 🛠️`,
+        login: `Hey! Having trouble logging in? 🔐 Let us help.`,
+        update: `Hey! Looks like the update broke something. 😔 We're on it.`,
+        ui: `Hey! Thanks for the design tip! 🎨`,
+        money: `Hey! We hear you on the pricing. 💸`
+      },
+      support: { 
+        pos: `Hello, We appreciate your feedback!`, 
+        neg: `Hello, Please contact our support team.`,
+        bug: `Hello, We are aware of this bug and fixing it.`,
+        login: `Hello, Please try resetting your password or contact us.`,
+        update: `Hello, A fix for the update issue is coming soon.`,
+        ui: `Hello, We are constantly improving our UI. Thanks!`,
+        money: `Hello, Contact support for subscription help.`
+      }
     }
   };
   
   const tLang = templates[lang] || templates.en;
   let selectedSet = tLang[tone] || tLang.formal;
   
-  if (hasBug && selectedSet.bug) return selectedSet.bug;
-  if (hasMoney && selectedSet.money) return selectedSet.money || selectedSet.neg;
+  // Öncelik Sırası: Hata > Giriş > Güncelleme > Para > Arayüz > Genel
+  if (context.bug) return selectedSet.bug;
+  if (context.login) return selectedSet.login || selectedSet.bug; // Fallback to bug if login not exists
+  if (context.update) return selectedSet.update || selectedSet.bug;
+  if (context.money) return selectedSet.money || selectedSet.neg;
+  if (context.ui) return selectedSet.ui || selectedSet.pos;
+  
   return isPositive ? selectedSet.pos : selectedSet.neg;
 };
 
@@ -521,7 +581,12 @@ export default function AppAnalysis() {
           genre: info.primaryGenreName,
           url: info.trackViewUrl,
           platform: 'ios',
-          country: searchCountry
+          country: searchCountry,
+          // YENİ ALANLAR:
+          screenshots: info.screenshotUrls || [],
+          releaseNotes: info.releaseNotes,
+          version: info.version,
+          updateDate: info.currentVersionReleaseDate
         });
         setReviews(cleanReviews);
         setFilteredReviews(cleanReviews);
@@ -546,7 +611,10 @@ export default function AppAnalysis() {
           price: "Free/Paid",
           genre: "App",
           url: playUrl,
-          platform: 'android'
+          platform: 'android',
+          screenshots: [], // Android scrape ile zor
+          releaseNotes: "Not available via scrape",
+          version: "N/A"
         });
         setReviews([]);
         setFilteredReviews([]);
@@ -793,6 +861,57 @@ export default function AppAnalysis() {
                 </div>
               </div>
             )}
+
+            {/* NEW: APP SHOWCASE SECTION */}
+            {appData.screenshots && appData.screenshots.length > 0 && (
+              <div className="mt-8 animate-in fade-in slide-in-from-bottom-10 duration-700">
+                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-blue-600" /> {t.appDetails}
+                </h3>
+                
+                {/* Screenshots Gallery */}
+                <div className="relative">
+                  <div className="flex overflow-x-auto gap-4 pb-6 snap-x scrollbar-hide">
+                    {appData.screenshots.map((src, idx) => (
+                      <img 
+                        key={idx} 
+                        src={src} 
+                        alt={`Screenshot ${idx + 1}`} 
+                        className="h-96 rounded-2xl shadow-md snap-center object-cover border border-slate-100" 
+                      />
+                    ))}
+                  </div>
+                  {/* Fade effect on right */}
+                  <div className="absolute right-0 top-0 h-full w-20 bg-gradient-to-l from-[#F8FAFC] to-transparent pointer-events-none"></div>
+                </div>
+
+                {/* What's New Card */}
+                {appData.releaseNotes && (
+                  <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm mt-6">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="bg-purple-100 p-2 rounded-lg"><FileText className="w-5 h-5 text-purple-600" /></div>
+                        <h4 className="font-bold text-gray-900">{t.whatsNew}</h4>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full">
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>{t.version} {appData.version}</span>
+                        {appData.updateDate && (
+                          <>
+                            <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                            <span>{new Date(appData.updateDate).toLocaleDateString()}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
+                      {appData.releaseNotes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         )}
         {showAllReviews && (
