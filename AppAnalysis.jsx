@@ -863,31 +863,34 @@ export default function AppAnalysis() {
             )}
 
             {/* NEW: APP SHOWCASE SECTION */}
-            {appData.screenshots && appData.screenshots.length > 0 && (
+            {(appData.screenshots?.length > 0 || appData.releaseNotes) && (
               <div className="mt-8 animate-in fade-in slide-in-from-bottom-10 duration-700">
-                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-blue-600" /> {t.appDetails}
-                </h3>
                 
                 {/* Screenshots Gallery */}
-                <div className="relative">
-                  <div className="flex overflow-x-auto gap-4 pb-6 snap-x scrollbar-hide">
-                    {appData.screenshots.map((src, idx) => (
-                      <img 
-                        key={idx} 
-                        src={src} 
-                        alt={`Screenshot ${idx + 1}`} 
-                        className="h-96 rounded-2xl shadow-md snap-center object-cover border border-slate-100" 
-                      />
-                    ))}
+                {appData.screenshots && appData.screenshots.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                      <ImageIcon className="w-5 h-5 text-blue-600" /> {t.appDetails}
+                    </h3>
+                    <div className="relative">
+                      <div className="flex overflow-x-auto gap-4 pb-6 snap-x scrollbar-hide">
+                        {appData.screenshots.map((src, idx) => (
+                          <img 
+                            key={idx} 
+                            src={src} 
+                            alt={`Screenshot ${idx + 1}`} 
+                            className="h-96 rounded-2xl shadow-md snap-center object-cover border border-slate-100" 
+                          />
+                        ))}
+                      </div>
+                      <div className="absolute right-0 top-0 h-full w-20 bg-gradient-to-l from-[#F8FAFC] to-transparent pointer-events-none"></div>
+                    </div>
                   </div>
-                  {/* Fade effect on right */}
-                  <div className="absolute right-0 top-0 h-full w-20 bg-gradient-to-l from-[#F8FAFC] to-transparent pointer-events-none"></div>
-                </div>
+                )}
 
                 {/* What's New Card */}
                 {appData.releaseNotes && (
-                  <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm mt-6">
+                  <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <div className="bg-purple-100 p-2 rounded-lg"><FileText className="w-5 h-5 text-purple-600" /></div>
