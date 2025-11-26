@@ -4,7 +4,7 @@ import {
   CheckCircle, Smartphone, Share2, Loader2, Info, ArrowLeft, 
   Lightbulb, List, TrendingUp, ShieldAlert, Cpu, Download, 
   Activity, Users, Copy, Check, ChevronDown, MessageCircle, Calendar, Filter,
-  ImageIcon, FileText, Layers, Reply
+  ImageIcon, FileText, Layers, Reply, Languages, X
 } from 'lucide-react';
 
 // --- SABİTLER ---
@@ -53,7 +53,13 @@ const TRANSLATIONS = {
     aiReply: "AI Önerisi",
     aiScoreTitle: "AI Score Nedir?",
     aiScoreDesc: "Kullanıcı duygu durumuna göre hesaplanan net memnuniyet endeksidir.",
-    howToImprove: "Nasıl Geliştirilir?"
+    howToImprove: "Nasıl Geliştirilir?",
+    translate: "Türkçeye Çevir",
+    original: "Orijinalini Göster",
+    translating: "Çevriliyor...",
+    searchReview: "Yorumlarda ara...",
+    filterStars: "Yıldız Filtresi",
+    allStars: "Tüm Yıldızlar"
   },
   en: {
     heroTitle: "App Review Analytics",
@@ -85,7 +91,13 @@ const TRANSLATIONS = {
     aiReply: "AI Suggestion",
     aiScoreTitle: "What is AI Score?",
     aiScoreDesc: "Net satisfaction index calculated based on user sentiment.",
-    howToImprove: "How to Improve?"
+    howToImprove: "How to Improve?",
+    translate: "Translate to Turkish",
+    original: "Show Original",
+    translating: "Translating...",
+    searchReview: "Search reviews...",
+    filterStars: "Star Filter",
+    allStars: "All Stars"
   }
 };
 
@@ -99,6 +111,20 @@ const TOPIC_KEYWORDS = {
   bug: ['hata', 'bug', 'açılmıyor', 'atıyor', 'kapanıyor', 'error', 'crash', 'close', 'open'],
   monetization: ['para', 'ücret', 'abonelik', 'pahalı', 'bedava', 'money', 'price', 'subscription', 'expensive', 'free'],
   ads: ['reklam', 'reklamlar', 'video', 'ads', 'advertisement', 'popup']
+};
+
+// --- YARDIMCI FONKSİYONLAR ---
+
+const detectLanguage = (text) => {
+  const trChars = /[ğüşıöçĞÜŞİÖÇ]/;
+  if (trChars.test(text)) return 'tr';
+  
+  const commonEnWords = ['the', 'and', 'is', 'to', 'it', 'this', 'my', 'app', 'very', 'good', 'bad'];
+  const words = text.toLowerCase().split(/\s+/);
+  const enCount = words.filter(w => commonEnWords.includes(w)).length;
+  
+  if (enCount > 0) return 'en';
+  return 'tr'; // Varsayılan
 };
 
 // --- YARDIMCI BİLEŞENLER ---
@@ -209,7 +235,7 @@ const TrendChart = ({ reviews }) => {
              return (
                <g key={i} className="group/dot">
                  <circle cx={x} cy={y} r="1.5" fill="white" stroke="#3b82f6" strokeWidth="1" className="cursor-pointer hover:r-2.5 transition-all duration-200" />
-                 <title>{`${d.date}\nOrtalama: ${d.avg.toFixed(1)}\nYorum: ${d.count}`}</title>
+                 <title>{`Tarih: ${d.date}\nOrtalama Puan: ${d.avg.toFixed(1)}\nPuanlama Sayısı: ${d.count}`}</title>
                </g>
              )
         })}
@@ -267,53 +293,84 @@ const TONES = { formal: { tr: "Resmi", en: "Formal" }, casual: { tr: "Samimi", e
 const generateAIResponse = (review, tone, lang) => {
   const isPositive = review.rating >= 4;
   const content = (review.title + " " + review.content).toLowerCase();
+  const reviewLang = detectLanguage(content); // Yorum dilini algıla
+  const isEnglish = reviewLang === 'en';
+
+  // Bağlam Analizi
   const context = {
-    bug: ['hata', 'bug', 'crash', 'açılmıyor', 'donuyor', 'kapanıyor'].some(k => content.includes(k)),
-    login: ['giriş', 'login', 'şifre', 'hesap', 'password'].some(k => content.includes(k)),
-    update: ['güncelleme', 'update', 'yeni sürüm', 'bozuldu'].some(k => content.includes(k)),
-    ui: ['tasarım', 'arayüz', 'renk', 'buton', 'ui', 'design'].some(k => content.includes(k)),
-    money: ['para', 'ücret', 'pahalı', 'abonelik'].some(k => content.includes(k)),
-    ads: ['reklam', 'video', 'reklamlar'].some(k => content.includes(k))
+    bug: ['hata', 'bug', 'crash', 'açılmıyor', 'donuyor', 'kapanıyor', 'fails', 'not working', 'closes', 'error'].some(k => content.includes(k)),
+    login: ['giriş', 'login', 'şifre', 'hesap', 'password', 'account', 'sign in'].some(k => content.includes(k)),
+    update: ['güncelleme', 'update', 'yeni sürüm', 'bozuldu', 'version', 'broken'].some(k => content.includes(k)),
+    ui: ['tasarım', 'arayüz', 'renk', 'buton', 'ui', 'design', 'interface', 'color', 'look'].some(k => content.includes(k)),
+    money: ['para', 'ücret', 'pahalı', 'abonelik', 'money', 'price', 'cost', 'subscription', 'expensive'].some(k => content.includes(k)),
+    ads: ['reklam', 'video', 'reklamlar', 'ads', 'advertisement'].some(k => content.includes(k))
   };
-  const authorName = review.author !== "User" ? review.author : (lang === 'tr' ? 'Kullanıcımız' : 'User');
+
+  const authorName = review.author !== "User" ? review.author : (isEnglish ? 'User' : 'Kullanıcımız');
+
   const templates = {
     tr: {
       formal: { 
-        pos: `Sayın ${authorName},\n\nGüzel yorumlarınız için teşekkür ederiz.`,
-        neg: `Sayın ${authorName},\n\nYaşadığınız sorun için üzgünüz.`,
-        bug: `Sayın ${authorName},\n\nTeknik aksaklık için üzgünüz. İnceliyoruz.`,
-        login: `Sayın ${authorName},\n\nGiriş sorunu için lütfen desteğe ulaşın.`,
-        update: `Sayın ${authorName},\n\nGüncelleme kaynaklı sorun için özür dileriz.`,
-        ui: `Sayın ${authorName},\n\nTasarım geri bildiriminiz için teşekkürler.`,
-        money: `Sayın ${authorName},\n\nFiyatlandırma geri bildiriminiz not edildi.`
+        pos: `Sayın ${authorName},\n\nGüzel yorumlarınız ve desteğiniz için çok teşekkür ederiz. Sizlere daha iyi hizmet verebilmek için çalışmaya devam ediyoruz.`,
+        neg: `Sayın ${authorName},\n\nYaşadığınız olumsuz deneyimden dolayı üzgünüz. Geri bildiriminizi dikkate aldık.`,
+        bug: `Sayın ${authorName},\n\nBahsettiğiniz teknik aksaklık (hata/donma) için üzgünüz. Ekibimiz konuyu inceliyor.`,
+        login: `Sayın ${authorName},\n\nHesap erişimi ve giriş süreçlerinde yaşadığınız sorunu çözmek için lütfen destek ekibimize ulaşın.`,
+        update: `Sayın ${authorName},\n\nSon güncelleme ile yaşadığınız uyumsuzluk için özür dileriz. Hızlı bir düzeltme üzerinde çalışıyoruz.`,
+        ui: `Sayın ${authorName},\n\nTasarım ile ilgili görüşlerinizi ürün ekibimize ilettik. Geri bildiriminiz bizim için değerli.`,
+        money: `Sayın ${authorName},\n\nFiyatlandırma politikamızla ilgili görüşleriniz için teşekkürler. Konuyu değerlendireceğiz.`
       },
       casual: {
-        pos: `Selam ${authorName}! 🚀 Teşekkürler!`,
-        neg: `Selam ${authorName}, üzüldük. Telafi edelim.`,
-        bug: `Selam! Hatayı bildirdiğin için sağ ol 🛠️`,
-        login: `Selam! Giriş sorunu mu? Halledelim.`,
-        update: `Selam! Güncelleme biraz karışmış, düzeltiyoruz.`,
-        ui: `Selam! Tasarım fikrin süper 🎨`,
-        money: `Selam! Fiyat konusunda haklısın 💸`
+        pos: `Selam ${authorName}! 🚀 Harika yorumun için çok sağ ol! Beğenmene sevindik.`,
+        neg: `Selam ${authorName}, bu durum can sıkıcı olmalı. Telafi etmek isteriz.`,
+        bug: `Selam! Hata bildirimini aldık, kodlara daldık bile! 🛠️ En kısa sürede düzelteceğiz.`,
+        login: `Selam! Giriş yaparken sorun mu yaşıyorsun? 🔐 Hemen destek'e yaz, halledelim.`,
+        update: `Selam! Güncelleme biraz sorunlu olmuş gibi. 😔 Merak etme, toparlıyoruz.`,
+        ui: `Selam! Arayüz hakkındaki fikrin süper. 🎨 Notlarımızı aldık!`,
+        money: `Selam! Fiyatlar konusunda haklı olabilirsin. 💸 Ekiple konuşacağız.`
       },
       support: {
-        pos: `Merhaba, geri bildiriminiz için teşekkürler!`,
-        neg: `Merhaba, sorunu çözmek için buradayız.`,
-        bug: `Merhaba, bu hatanın farkındayız ve düzeltiyoruz.`,
-        login: `Merhaba, şifre sıfırlamayı denediniz mi?`,
-        update: `Merhaba, düzeltme yolda.`,
-        ui: `Merhaba, deneyimi iyileştirmeye çalışıyoruz.`,
-        money: `Merhaba, destek ekibimizle iletişime geçin.`
+        pos: `Merhaba, geri bildiriminiz ekibimizi çok motive etti. Teşekkürler!`,
+        neg: `Merhaba, sorununuzu çözmek için buradayız. Lütfen detayları paylaşın.`,
+        bug: `Merhaba, bu teknik hatanın farkındayız. Lütfen uygulamanızı güncel tutun.`,
+        login: `Merhaba, hesap güvenliğiniz için şifrenizi sıfırlamayı denediniz mi? Yardımcı olabiliriz.`,
+        update: `Merhaba, son sürümdeki bu aksaklık için üzgünüz. Düzeltme yolda.`,
+        ui: `Merhaba, kullanıcı deneyimini iyileştirmek için çalışıyoruz. Öneriniz için teşekkürler.`,
+        money: `Merhaba, size en uygun paketi bulmak için destek ekibimize yazabilirsiniz.`
       }
     },
     en: {
-      formal: { pos: `Dear ${authorName}, Thanks.`, neg: `Dear ${authorName}, Apologies.`, bug: `Dear ${authorName}, Fixing it.`, login: `Dear ${authorName}, Contact support.`, update: `Dear ${authorName}, Working on fix.`, ui: `Dear ${authorName}, Thanks for feedback.`, money: `Dear ${authorName}, Noted.` },
-      casual: { pos: `Hey! 🚀`, neg: `Hey! 😔`, bug: `Hey! 🛠️`, login: `Hey! 🔐`, update: `Hey! 😔`, ui: `Hey! 🎨`, money: `Hey! 💸` },
-      support: { pos: `Hello!`, neg: `Hello!`, bug: `Hello!`, login: `Hello!`, update: `Hello!`, ui: `Hello!`, money: `Hello!` }
+      formal: { 
+        pos: `Dear ${authorName},\n\nThank you so much for your kind words and support! We are constantly working to provide you with the best experience possible.`, 
+        neg: `Dear ${authorName},\n\nWe sincerely apologize for the inconvenience you've experienced. We take your feedback very seriously and are investigating the issue.`,
+        bug: `Dear ${authorName},\n\nWe apologize for the technical glitch you encountered. Our engineering team has been notified and is currently investigating the root cause to release a fix shortly.`,
+        login: `Dear ${authorName},\n\nWe are sorry to hear you are having trouble logging in. Please contact our support team directly so we can assist you in restoring access to your account.`,
+        update: `Dear ${authorName},\n\nWe apologize if the recent update caused any disruption. We are actively working on a patch to address these compatibility issues.`,
+        ui: `Dear ${authorName},\n\nThank you for your feedback regarding the design. We have forwarded your thoughts to our product team for future improvements.`,
+        money: `Dear ${authorName},\n\nWe appreciate your feedback on our pricing model. We strive to offer the best value and will take your comments into consideration.`
+      },
+      casual: { 
+        pos: `Hey ${authorName}! 🚀 Thanks a million for the awesome review! We're super happy you're enjoying the app.`, 
+        neg: `Hey ${authorName}, so sorry to hear that! 😔 We want to make things right.`,
+        bug: `Hey! Thanks for catching that bug! 🛠️ Our dev team is already on it and we'll have it squashed in no time.`,
+        login: `Hey! Having trouble getting in? 🔐 That's annoying. Drop a message to our support, and we'll get you sorted out ASAP.`,
+        update: `Hey! Looks like the latest update broke a few things. 😔 So sorry about that! We're fixing it right now.`,
+        ui: `Hey! Thanks for the design tip! 🎨 We love hearing ideas on how to make the app look better.`,
+        money: `Hey! We hear you on the pricing. 💸 We try to be fair, but we'll definitely discuss your feedback with the team.`
+      },
+      support: { 
+        pos: `Hello! Your feedback just made our day. Thank you for being an amazing user!`, 
+        neg: `Hello, we are here to help you solve this issue. Please reach out to us with more details.`,
+        bug: `Hello, we are aware of this bug and a fix is in progress. Please keep your app updated.`,
+        login: `Hello, please try resetting your password. If that doesn't work, contact us and we'll help you log in.`,
+        update: `Hello, we apologize for the issues with the new version. A fix is coming very soon.`,
+        ui: `Hello, we are constantly working to improve our UI/UX. Thanks for your suggestion!`,
+        money: `Hello, if you need help choosing the right plan or have billing questions, please contact our support team.`
+      }
     }
   };
   
-  const tLang = templates[lang] || templates.en;
+  // Dil seçimi: Yorum İngilizce ise EN şablonlarını, değilse (veya TR ise) TR şablonlarını kullan.
+  const tLang = isEnglish ? templates.en : (templates[lang] || templates.tr);
   let selectedSet = tLang[tone] || tLang.formal;
   
   if (context.bug) return selectedSet.bug;
@@ -328,13 +385,48 @@ const generateAIResponse = (review, tone, lang) => {
 const ReviewResponseCard = ({ review, lang }) => {
   const [tone, setTone] = useState('formal');
   const [copied, setCopied] = useState(false);
+  const [translatedText, setTranslatedText] = useState(null);
+  const [isTranslating, setIsTranslating] = useState(false);
+  
   const t = TRANSLATIONS[lang];
   const responseText = useMemo(() => generateAIResponse(review, tone, lang), [review, tone, lang]);
+  
+  const reviewLang = useMemo(() => detectLanguage(review.content), [review.content]);
+  const isForeign = reviewLang === 'en' && lang === 'tr'; // Eğer biz TR modundaysak ve yorum EN ise yabancıdır
 
   const handleCopy = () => {
     navigator.clipboard.writeText(responseText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleTranslate = async () => {
+    if (translatedText) {
+      setTranslatedText(null); // Toggle off
+      return;
+    }
+    
+    setIsTranslating(true);
+    try {
+      // Google Translate Linki (En garantisi)
+      // Veya basit bir mock çeviri (Demo olduğu için)
+      // Gerçek API kısıtlamaları nedeniyle burada simüle ediyoruz veya link veriyoruz.
+      // Burada kullanıcı deneyimi için metni çevrilmiş gibi göstereceğiz (Demo amaçlı basit)
+      // Gerçek bir uygulamada burada Google Cloud Translation API çağrılır.
+      
+      // Demo: Ücretsiz bir API deneyelim
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(review.content)}&langpair=en|tr`);
+      const data = await res.json();
+      if (data && data.responseData) {
+        setTranslatedText(data.responseData.translatedText);
+      } else {
+        setTranslatedText("Çeviri servisine ulaşılamadı.");
+      }
+    } catch (e) {
+      setTranslatedText("Çeviri hatası.");
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
   return (
@@ -350,11 +442,25 @@ const ReviewResponseCard = ({ review, lang }) => {
         <StarRating rating={review.rating} />
       </div>
       <h5 className="font-bold text-gray-800 text-sm mb-2">{review.title}</h5>
-      <p className="text-gray-600 text-sm leading-relaxed mb-4">{review.content}</p>
+      
+      {/* Yorum İçeriği ve Çeviri */}
+      <div className="mb-4">
+        <p className="text-gray-600 text-sm leading-relaxed">{translatedText || review.content}</p>
+        {isForeign && (
+          <button 
+            onClick={handleTranslate} 
+            disabled={isTranslating}
+            className="mt-2 flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            <Languages className="w-3.5 h-3.5" />
+            {isTranslating ? t.translating : (translatedText ? t.original : t.translate)}
+          </button>
+        )}
+      </div>
 
-      {/* GERÇEK GELİŞTİRİCİ CEVABI VARSA GÖSTER */}
-      {review.developerResponse && (
-        <div className="bg-emerald-50 rounded-xl border border-emerald-100 p-4 mt-4 mb-4">
+      {/* LOGIC CHANGE: Show either Developer Response OR AI Suggestion */}
+      {review.developerResponse ? (
+        <div className="bg-emerald-50 rounded-xl border border-emerald-100 p-4 mt-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="bg-emerald-100 p-1.5 rounded-lg"><Reply className="w-3.5 h-3.5 text-emerald-600" /></div>
             <span className="text-xs font-bold text-emerald-800 uppercase">{t.developerResponse}</span>
@@ -362,26 +468,25 @@ const ReviewResponseCard = ({ review, lang }) => {
           </div>
           <p className="text-sm text-emerald-800 leading-relaxed font-medium">{review.developerResponse}</p>
         </div>
-      )}
-
-      {/* AI ÖNERİSİ */}
-      <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="bg-blue-100 p-1.5 rounded-lg"><MessageCircle className="w-3.5 h-3.5 text-blue-600" /></div>
-            <span className="text-xs font-bold text-blue-800 uppercase">{t.aiReply}</span>
+      ) : (
+        <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-4 mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-blue-100 p-1.5 rounded-lg"><MessageCircle className="w-3.5 h-3.5 text-blue-600" /></div>
+              <span className="text-xs font-bold text-blue-800 uppercase">{t.aiReply}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <select value={tone} onChange={(e) => setTone(e.target.value)} className="pl-3 pr-8 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-medium text-gray-700 outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
+                <option value="formal">{TONES.formal[lang]}</option>
+                <option value="casual">{TONES.casual[lang]}</option>
+                <option value="support">{TONES.support[lang]}</option>
+              </select>
+              <button onClick={handleCopy} className="p-1.5 rounded-lg border bg-white border-blue-200 text-gray-500 hover:text-blue-600">{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <select value={tone} onChange={(e) => setTone(e.target.value)} className="pl-3 pr-8 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-medium text-gray-700 outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
-              <option value="formal">{TONES.formal[lang]}</option>
-              <option value="casual">{TONES.casual[lang]}</option>
-              <option value="support">{TONES.support[lang]}</option>
-            </select>
-            <button onClick={handleCopy} className="p-1.5 rounded-lg border bg-white border-blue-200 text-gray-500 hover:text-blue-600">{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</button>
-          </div>
+          <textarea readOnly value={responseText} className="w-full text-sm text-slate-700 bg-transparent resize-none outline-none font-medium leading-relaxed" rows={responseText.split('\n').length} />
         </div>
-        <textarea readOnly value={responseText} className="w-full text-sm text-slate-700 bg-transparent resize-none outline-none font-medium leading-relaxed" rows={responseText.split('\n').length} />
-      </div>
+      )}
     </div>
   );
 };
@@ -400,6 +505,10 @@ export default function AppAnalysis() {
   const [uiDateRange, setUiDateRange] = useState({ start: '', end: '' }); 
   const [activeDateRange, setActiveDateRange] = useState({ start: '', end: '' }); 
   const [filteredReviews, setFilteredReviews] = useState([]);
+  
+  // Yeni Filtreler
+  const [filterText, setFilterText] = useState('');
+  const [filterStar, setFilterStar] = useState('all');
   
   const [analysis, setAnalysis] = useState(null);
   const [showAllReviews, setShowAllReviews] = useState(false);
@@ -473,7 +582,7 @@ export default function AppAnalysis() {
           title: "", 
           content: item[4],
           version: item[10], 
-          developerResponse: item[7] ? item[7][1] : null, // Developer yanıtı burada
+          developerResponse: item[7] ? item[7][1] : null, 
           developerResponseDate: item[7] ? item[7][2][0] : null
         };
       });
@@ -495,7 +604,8 @@ export default function AppAnalysis() {
                 content: r.content?.label || "",
                 version: r['im:version']?.label || "",
                 rawDate: r.updated?.label || new Date().toISOString(),
-                date: new Date(r.updated?.label || new Date()).toLocaleDateString()
+                date: new Date(r.updated?.label || new Date()).toLocaleDateString(),
+                developerResponse: null 
             }));
         }
     } catch (e) {
@@ -515,6 +625,8 @@ export default function AppAnalysis() {
     setShowAllReviews(false);
     setUiDateRange({ start: '', end: '' });
     setActiveDateRange({ start: '', end: '' });
+    setFilterText('');
+    setFilterStar('all');
 
     try {
       let platform = '', id = '';
@@ -628,7 +740,8 @@ export default function AppAnalysis() {
     }
   };
 
-  // --- Diğer Fonksiyonlar Aynı ---
+  // --- FILTRELEME FONKSİYONLARI ---
+
   const handleApplyFilter = () => { setActiveDateRange(uiDateRange); };
   const setPresetDate = (days) => {
     const end = new Date();
@@ -641,10 +754,28 @@ export default function AppAnalysis() {
   useEffect(() => {
     if (!reviews.length) { setFilteredReviews([]); return; }
     let filtered = [...reviews];
+    
+    // Tarih Filtresi
     if (activeDateRange.start) filtered = filtered.filter(r => new Date(r.rawDate) >= new Date(activeDateRange.start));
     if (activeDateRange.end) { const endDate = new Date(activeDateRange.end); endDate.setHours(23, 59, 59, 999); filtered = filtered.filter(r => new Date(r.rawDate) <= endDate); }
+    
+    // Metin Arama Filtresi (Yeni)
+    if (filterText) {
+        const lowerText = filterText.toLowerCase();
+        filtered = filtered.filter(r => 
+            r.content.toLowerCase().includes(lowerText) || 
+            r.title?.toLowerCase().includes(lowerText) ||
+            r.author.toLowerCase().includes(lowerText)
+        );
+    }
+
+    // Yıldız Filtresi (Yeni)
+    if (filterStar !== 'all') {
+        filtered = filtered.filter(r => r.rating === parseInt(filterStar));
+    }
+
     setFilteredReviews(filtered);
-  }, [activeDateRange, reviews]);
+  }, [activeDateRange, reviews, filterText, filterStar]);
 
   const analyzeReviews = (list, language, globalStats = { globalAvg: 0, globalCount: 0 }) => {
     if (!list || list.length === 0) return null;
@@ -756,26 +887,6 @@ export default function AppAnalysis() {
             {analysis && (
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                 <div className="md:col-span-8 space-y-6">
-                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center relative group cursor-help">
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full mb-2 w-64 bg-slate-800 text-white text-xs p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left shadow-xl">
-                      <div className="font-bold mb-1 text-emerald-400">{t.aiScoreTitle}</div>
-                      <p className="mb-2 opacity-90">{t.aiScoreDesc}</p>
-                      <div className="font-bold mb-1 text-blue-400">{t.howToImprove}</div>
-                      <ul className="list-disc pl-3 space-y-1 opacity-90">
-                        {analysis.recs.slice(0, 3).map((rec, i) => (
-                          <li key={i}>{rec}</li>
-                        ))}
-                      </ul>
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-800 rotate-45 -mt-1.5"></div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-4">AI Score</div>
-                    <div className={`text-6xl font-black mb-2 tracking-tighter ${analysis.score > 0 ? 'text-blue-600' : 'text-gray-400'}`}>{analysis.score > 0 ? '+' : ''}{analysis.score}</div>
-                    <div className="flex gap-1 mb-6"><span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">{analysis.pos} Pos</span><span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-bold">{analysis.neg} Neg</span></div>
-                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden"><div className={`h-full transition-all duration-1000 ${analysis.score > 0 ? 'bg-blue-500' : 'bg-red-500'}`} style={{ width: `${Math.min((Math.abs(analysis.score) / analysis.total) * 100, 100)}%` }}></div></div>
-                  </div>
                   <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm"><div className="flex items-center gap-2 mb-4"><div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><List className="w-5 h-5" /></div><h3 className="text-lg font-bold text-gray-900">{t.summary}</h3></div><ul className="space-y-4">{analysis.summary.map((p, i) => <li key={i} className="flex items-start gap-3 text-slate-700 text-sm"><CheckCircle className="w-5 h-5 text-indigo-500 flex-shrink-0" /><span dangerouslySetInnerHTML={{__html: p.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}} /></li>)}</ul></div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <StatCard title={t.topics.bug} value={analysis.topics.bug} icon={ShieldAlert} color={analysis.topics.bug > 0 ? "red" : "blue"} />
@@ -792,7 +903,7 @@ export default function AppAnalysis() {
                 </div>
                 <div className="md:col-span-4 space-y-6">
                   <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center relative group cursor-help">
-                    {/* Tooltip Duplicate for Right Column (Opsiyonel, zaten sol kolonda var ama structure gereği buraya da eklenebilir veya bu blok kaldırılabilir) */}
+                    {/* Tooltip */}
                     <div className="absolute bottom-full mb-2 w-64 bg-slate-800 text-white text-xs p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left shadow-xl">
                       <div className="font-bold mb-1 text-emerald-400">{t.aiScoreTitle}</div>
                       <p className="mb-2 opacity-90">{t.aiScoreDesc}</p>
@@ -840,9 +951,52 @@ export default function AppAnalysis() {
         {showAllReviews && (
           <div className="fixed inset-0 z-[60] bg-white overflow-auto p-6">
              <div className="max-w-5xl mx-auto">
-               <button onClick={() => setShowAllReviews(false)} className="mb-6 flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"><ArrowLeft className="w-4 h-4" /> {t.back}</button>
-               <h2 className="text-2xl font-bold mb-6">{t.allReviews}</h2>
-               <div className="space-y-4">{filteredReviews.map((r, i) => <ReviewResponseCard key={i} review={r} lang={lang} />)}</div>
+               <div className="flex items-center justify-between mb-6">
+                 <button onClick={() => setShowAllReviews(false)} className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-gray-700 font-medium"><ArrowLeft className="w-4 h-4" /> {t.back}</button>
+                 <button onClick={() => setShowAllReviews(false)} className="p-2 hover:bg-gray-100 rounded-full"><X className="w-5 h-5 text-gray-500" /></button>
+               </div>
+               
+               <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-6">
+                 <h2 className="text-2xl font-bold mb-6 text-gray-900">{t.allReviews}</h2>
+                 
+                 {/* FILTERS */}
+                 <div className="flex flex-col md:flex-row gap-4 mb-6">
+                   <div className="relative flex-1">
+                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                     <input 
+                       type="text" 
+                       placeholder={t.searchReview} 
+                       value={filterText}
+                       onChange={(e) => setFilterText(e.target.value)}
+                       className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                     />
+                   </div>
+                   
+                   <div className="relative w-full md:w-48">
+                     <select 
+                       value={filterStar} 
+                       onChange={(e) => setFilterStar(e.target.value)}
+                       className="w-full pl-4 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 appearance-none cursor-pointer"
+                     >
+                       <option value="all">{t.allStars}</option>
+                       <option value="5">5 Star</option>
+                       <option value="4">4 Star</option>
+                       <option value="3">3 Star</option>
+                       <option value="2">2 Star</option>
+                       <option value="1">1 Star</option>
+                     </select>
+                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                   </div>
+                 </div>
+
+                 <div className="space-y-4">
+                   {filteredReviews.length > 0 ? (
+                     filteredReviews.map((r, i) => <ReviewResponseCard key={i} review={r} lang={lang} />)
+                   ) : (
+                     <div className="text-center py-12 text-gray-400">No reviews found matching your criteria.</div>
+                   )}
+                 </div>
+               </div>
              </div>
           </div>
         )}
