@@ -50,7 +50,10 @@ const TRANSLATIONS = {
     whatsNew: "Yenilikler",
     version: "Sürüm",
     developerResponse: "Geliştirici Cevabı",
-    aiReply: "AI Önerisi"
+    aiReply: "AI Önerisi",
+    aiScoreTitle: "AI Score Nedir?",
+    aiScoreDesc: "Kullanıcı duygu durumuna göre hesaplanan net memnuniyet endeksidir.",
+    howToImprove: "Nasıl Geliştirilir?"
   },
   en: {
     heroTitle: "App Review Analytics",
@@ -79,7 +82,10 @@ const TRANSLATIONS = {
     whatsNew: "What's New",
     version: "Version",
     developerResponse: "Developer Response",
-    aiReply: "AI Suggestion"
+    aiReply: "AI Suggestion",
+    aiScoreTitle: "What is AI Score?",
+    aiScoreDesc: "Net satisfaction index calculated based on user sentiment.",
+    howToImprove: "How to Improve?"
   }
 };
 
@@ -446,8 +452,6 @@ export default function AppAnalysis() {
   // ANDROID PARSER
   const parseAndroidReviews = (html) => {
     try {
-      // Google Play DS:15 script bloğunu bul (Genellikle yorumları barındırır)
-      // Not: Bu regex Google'ın HTML yapısına göre kırılgan olabilir, ama frontend için en iyi yöntemdir.
       const regex = /AF_initDataCallback\({key: 'ds:15'.*?data:([\s\S]*?), sideChannel: {}}\);<\/script>/;
       const match = html.match(regex);
       if (!match) return [];
@@ -752,6 +756,26 @@ export default function AppAnalysis() {
             {analysis && (
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                 <div className="md:col-span-8 space-y-6">
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center relative group cursor-help">
+                    {/* Tooltip */}
+                    <div className="absolute bottom-full mb-2 w-64 bg-slate-800 text-white text-xs p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left shadow-xl">
+                      <div className="font-bold mb-1 text-emerald-400">{t.aiScoreTitle}</div>
+                      <p className="mb-2 opacity-90">{t.aiScoreDesc}</p>
+                      <div className="font-bold mb-1 text-blue-400">{t.howToImprove}</div>
+                      <ul className="list-disc pl-3 space-y-1 opacity-90">
+                        {analysis.recs.slice(0, 3).map((rec, i) => (
+                          <li key={i}>{rec}</li>
+                        ))}
+                      </ul>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-800 rotate-45 -mt-1.5"></div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-4">AI Score</div>
+                    <div className={`text-6xl font-black mb-2 tracking-tighter ${analysis.score > 0 ? 'text-blue-600' : 'text-gray-400'}`}>{analysis.score > 0 ? '+' : ''}{analysis.score}</div>
+                    <div className="flex gap-1 mb-6"><span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">{analysis.pos} Pos</span><span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-bold">{analysis.neg} Neg</span></div>
+                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden"><div className={`h-full transition-all duration-1000 ${analysis.score > 0 ? 'bg-blue-500' : 'bg-red-500'}`} style={{ width: `${Math.min((Math.abs(analysis.score) / analysis.total) * 100, 100)}%` }}></div></div>
+                  </div>
                   <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm"><div className="flex items-center gap-2 mb-4"><div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><List className="w-5 h-5" /></div><h3 className="text-lg font-bold text-gray-900">{t.summary}</h3></div><ul className="space-y-4">{analysis.summary.map((p, i) => <li key={i} className="flex items-start gap-3 text-slate-700 text-sm"><CheckCircle className="w-5 h-5 text-indigo-500 flex-shrink-0" /><span dangerouslySetInnerHTML={{__html: p.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}} /></li>)}</ul></div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <StatCard title={t.topics.bug} value={analysis.topics.bug} icon={ShieldAlert} color={analysis.topics.bug > 0 ? "red" : "blue"} />
@@ -767,7 +791,20 @@ export default function AppAnalysis() {
                   )}
                 </div>
                 <div className="md:col-span-4 space-y-6">
-                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center">
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center relative group cursor-help">
+                    {/* Tooltip Duplicate for Right Column (Opsiyonel, zaten sol kolonda var ama structure gereği buraya da eklenebilir veya bu blok kaldırılabilir) */}
+                    <div className="absolute bottom-full mb-2 w-64 bg-slate-800 text-white text-xs p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left shadow-xl">
+                      <div className="font-bold mb-1 text-emerald-400">{t.aiScoreTitle}</div>
+                      <p className="mb-2 opacity-90">{t.aiScoreDesc}</p>
+                      <div className="font-bold mb-1 text-blue-400">{t.howToImprove}</div>
+                      <ul className="list-disc pl-3 space-y-1 opacity-90">
+                        {analysis.recs.slice(0, 3).map((rec, i) => (
+                          <li key={i}>{rec}</li>
+                        ))}
+                      </ul>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-800 rotate-45 -mt-1.5"></div>
+                    </div>
+
                     <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-4">AI Score</div>
                     <div className={`text-6xl font-black mb-2 tracking-tighter ${analysis.score > 0 ? 'text-blue-600' : 'text-gray-400'}`}>{analysis.score > 0 ? '+' : ''}{analysis.score}</div>
                     <div className="flex gap-1 mb-6"><span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">{analysis.pos} Pos</span><span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-bold">{analysis.neg} Neg</span></div>
