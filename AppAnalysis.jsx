@@ -285,6 +285,7 @@ export default function AppAnalysis() {
   // YENİ: Gelişmiş Proxy ve Veri Çekme Fonksiyonu
   const fetchSmart = async (targetUrl) => {
     const proxies = [
+      { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, type: 'raw' }, // Daha stabil
       { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, type: 'json_wrapper' },
       { url: `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, type: 'raw' },
       { url: `https://thingproxy.freeboard.io/fetch/${targetUrl}`, type: 'raw' }
@@ -310,19 +311,47 @@ export default function AppAnalysis() {
           }
         } else {
           // Raw proxy'ler direkt JSON veya Text döner
-          const contentType = res.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            data = await res.json();
-          } else {
-            data = await res.text();
+          // GÜVENLİK: İçerik tipi ne olursa olsun JSON olarak parse etmeyi dene, olmazsa text olarak al.
+          const text = await res.text();
+          try {
+            data = JSON.parse(text);
+          } catch (e) {
+            data = text;
           }
         }
+        
+        // Eğer veri boşsa veya hata içeriyorsa bir sonraki proxye geçmek için hata fırlatılabilir
+        if (!data) throw new Error("Empty response");
+        
         return data;
       } catch (e) {
         console.warn(`Proxy failed: ${proxy.url}`, e);
       }
     }
     throw new Error("All proxies failed");
+  };
+
+  const fetchReviewsForCountry = async (id, countryCode) => {
+    // Limit 500'e çıkarıldı
+    const rssUrl = `https://itunes.apple.com/${countryCode}/rss/customerreviews/id=${id}/sortBy=mostRecent/json?limit=500`;
+    try {
+        const rssJson = await fetchSmart(rssUrl);
+        if (rssJson && rssJson.feed && rssJson.feed.entry) {
+            const entries = Array.isArray(rssJson.feed.entry) ? rssJson.feed.entry : [rssJson.feed.entry];
+            return entries.slice(1).map(r => ({
+                author: r.author?.name?.label || "User",
+                rating: parseInt(r['im:rating']?.label || "0"),
+                title: r.title?.label || "",
+                content: r.content?.label || "",
+                version: r['im:version']?.label || "",
+                rawDate: r.updated?.label || new Date().toISOString(),
+                date: new Date(r.updated?.label || new Date()).toLocaleDateString()
+            }));
+        }
+    } catch (e) {
+        console.warn(`Reviews fetch failed for country ${countryCode}:`, e);
+    }
+    return [];
   };
 
   const handleAnalyze = async () => {
@@ -354,30 +383,20 @@ export default function AppAnalysis() {
         const lookupUrl = `https://itunes.apple.com/lookup?id=${id}`;
         const json = await fetchSmart(lookupUrl);
         
-        if (!json || json.resultCount === 0) throw new Error("App Not Found");
+        // GÜVENLİK: JSON yapısını kontrol et
+        if (!json || typeof json !== 'object' || !json.results || !Array.isArray(json.results) || json.results.length === 0) { 
+            throw new Error("App Not Found or Invalid Data Structure"); 
+        }
+        
         const info = json.results[0];
 
-        // 2. Reviews (RSS)
-        const rssUrl = `https://itunes.apple.com/tr/rss/customerreviews/id=${id}/sortBy=mostRecent/json`;
-        let cleanReviews = [];
+        // 2. Reviews - Country Fallback Logic
+        // Önce TR dene, veri yoksa US dene
+        let cleanReviews = await fetchReviewsForCountry(id, 'tr');
         
-        try {
-          const rssJson = await fetchSmart(rssUrl);
-          if (rssJson && rssJson.feed && rssJson.feed.entry) {
-            const entries = Array.isArray(rssJson.feed.entry) ? rssJson.feed.entry : [rssJson.feed.entry];
-            // İlk kayıt genellikle uygulama bilgisidir, filtreleyelim
-            cleanReviews = entries.slice(1).map(r => ({
-              author: r.author?.name?.label || "User",
-              rating: parseInt(r['im:rating']?.label || "0"),
-              title: r.title?.label || "",
-              content: r.content?.label || "",
-              version: r['im:version']?.label || "",
-              rawDate: r.updated?.label || new Date().toISOString(), 
-              date: new Date(r.updated?.label || new Date()).toLocaleDateString()
-            }));
-          }
-        } catch (e) {
-          console.warn("Reviews could not be fetched:", e);
+        if (cleanReviews.length === 0) {
+            console.log("TR store has no reviews, falling back to US store...");
+            cleanReviews = await fetchReviewsForCountry(id, 'us');
         }
 
         setAppData({
