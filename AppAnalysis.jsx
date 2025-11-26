@@ -427,21 +427,26 @@ export default function AppAnalysis() {
 
       if (platform === 'ios') {
         const lookupUrl = `https://itunes.apple.com/lookup?id=${id}`;
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(lookupUrl)}`;
-        const res = await fetch(proxyUrl);
-        const data = await res.json();
-        const json = JSON.parse(data.contents);
+        // DEĞİŞİKLİK 1: Daha güvenilir bir proxy (corsproxy.io) kullanıyoruz.
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(lookupUrl)}`;
+        
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('Proxy Error');
+        
+        // DEĞİŞİKLİK 2: AllOrigins JSON wrapper'ı kaldırıldı, doğrudan JSON alıyoruz.
+        const json = await response.json(); 
         
         if (json.resultCount === 0) throw new Error("App Not Found");
         const info = json.results[0];
 
         // Fetch Reviews (RSS)
-        // Note: Apple RSS usually returns max 50 items.
         const rssUrl = `https://itunes.apple.com/tr/rss/customerreviews/id=${id}/sortBy=mostRecent/json`;
-        const rssProxy = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
+        const rssProxy = `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`;
+        
         const rssRes = await fetch(rssProxy);
-        const rssData = await rssRes.json();
-        const rssJson = JSON.parse(rssData.contents);
+        if (!rssRes.ok) throw new Error('RSS Proxy Error');
+        
+        const rssJson = await rssRes.json();
         
         const entry = rssJson.feed.entry || [];
         const entries = Array.isArray(entry) ? entry : [entry];
@@ -452,7 +457,6 @@ export default function AppAnalysis() {
           title: r.title?.label || "",
           content: r.content?.label || "",
           version: r['im:version']?.label || "",
-          // RSS 'updated' field example: "2023-11-25T10:00:00-07:00"
           rawDate: r.updated?.label || new Date().toISOString(), 
           date: new Date(r.updated?.label || new Date()).toLocaleDateString()
         }));
@@ -472,15 +476,18 @@ export default function AppAnalysis() {
 
         setAppData(appInfoData);
         setReviews(cleanReviews);
-        setFilteredReviews(cleanReviews); // Başlangıçta hepsi
+        setFilteredReviews(cleanReviews);
 
       } else {
-        // Android Simple Scrape (No Dates available usually)
+        // Android Simple Scrape
         const playUrl = `https://play.google.com/store/apps/details?id=${id}&hl=${lang}`;
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(playUrl)}`;
-        const res = await fetch(proxyUrl);
-        const data = await res.json();
-        const html = data.contents;
+        // Android için de aynı proxy'yi kullanıyoruz, ancak dönen değer HTML (text).
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(playUrl)}`;
+        
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('Android Proxy Error');
+        
+        const html = await response.text(); // AllOrigins wrapper olmadığı için doğrudan text alıyoruz
 
         const nameMatch = html.match(/<h1 itemprop="name">([^<]+)<\/h1>/) || html.match(/<h1[^>]*>([^<]+)<\/h1>/);
         const iconMatch = html.match(/<img[^>]+src="([^"]+)"[^>]+alt="Cover art"[^>]*>/) || html.match(/<img[^>]+src="([^"]+)"[^>]+class="T75a adNLdk"[^>]*>/);
@@ -520,8 +527,6 @@ export default function AppAnalysis() {
       filtered = filtered.filter(r => new Date(r.rawDate) >= new Date(dateRange.start));
     }
     if (dateRange.end) {
-      // Bitiş gününün sonuna kadar kapsaması için saati 23:59 yapabiliriz veya next day.
-      // Basit karşılaştırma:
       const endDate = new Date(dateRange.end);
       endDate.setHours(23, 59, 59, 999);
       filtered = filtered.filter(r => new Date(r.rawDate) <= endDate);
