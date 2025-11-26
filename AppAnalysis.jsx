@@ -3,8 +3,84 @@ import {
   Search, Globe, Star, BarChart2, MessageSquare, AlertTriangle, 
   CheckCircle, Smartphone, Share2, Loader2, Info, ArrowLeft, 
   Lightbulb, List, TrendingUp, ShieldAlert, Cpu, Download, 
-  Activity, Users, Copy, Check, ChevronDown, MessageCircle, Calendar
+  Activity, Users, Copy, Check, ChevronDown, MessageCircle, Calendar, Filter
 } from 'lucide-react';
+
+// --- SABİTLER ---
+
+const COUNTRIES = [
+  { code: 'tr', name: 'TR', flag: '🇹🇷' },
+  { code: 'us', name: 'US', flag: '🇺🇸' },
+  { code: 'gb', name: 'UK', flag: '🇬🇧' },
+  { code: 'de', name: 'DE', flag: '🇩🇪' },
+  { code: 'jp', name: 'JP', flag: '🇯🇵' },
+  { code: 'kr', name: 'KR', flag: '🇰🇷' },
+  { code: 'cn', name: 'CN', flag: '🇨🇳' },
+  { code: 'fr', name: 'FR', flag: '🇫🇷' },
+  { code: 'es', name: 'ES', flag: '🇪🇸' },
+  { code: 'it', name: 'IT', flag: '🇮🇹' },
+];
+
+const TRANSLATIONS = {
+  tr: {
+    heroTitle: "Uygulama İnceleme Analizi",
+    heroSubtitle: "Yapay zeka destekli içgörüler ile kullanıcı geri bildirimlerini analiz edin.",
+    placeholder: "App Store veya Play Store linki yapıştırın...",
+    analyzeBtn: "Analiz Et",
+    loading: "Veriler çekiliyor...",
+    errorGeneric: "Veri alınamadı. Proxy sorunu olabilir, lütfen tekrar deneyin.",
+    summary: "Analiz Özeti",
+    recommendations: "Öneriler",
+    sentimentDist: "Duygu Dağılımı",
+    recentReviews: "Son Yorumlar",
+    allReviews: "Tüm Yorumlar",
+    seeAll: "Tümünü Gör",
+    back: "Geri",
+    playStoreWarn: "Google Play kısıtlamaları nedeniyle detaylı analiz sınırlıdır.",
+    topics: { bug: "Hata", ads: "Reklam", perf: "Performans", money: "Fiyat" },
+    sentiment: { pos: "Olumlu", neg: "Olumsuz", neu: "Nötr" },
+    filterTitle: "Tarih Filtresi",
+    trendChart: "Puan Trendi",
+    distChart: "Yıldız Dağılımı",
+    applyFilter: "Uygula",
+    presets: { week: "Son 1 Hafta", month: "Son 1 Ay", year: "Son 1 Yıl", all: "Tümü" }
+  },
+  en: {
+    heroTitle: "App Review Analytics",
+    heroSubtitle: "Analyze user feedback with AI-powered insights.",
+    placeholder: "Paste App Store or Play Store link...",
+    analyzeBtn: "Analyze",
+    loading: "Fetching data...",
+    errorGeneric: "Failed to fetch data. Please try again.",
+    summary: "Analysis Summary",
+    recommendations: "Recommendations",
+    sentimentDist: "Sentiment Distribution",
+    recentReviews: "Recent Reviews",
+    allReviews: "All Reviews",
+    seeAll: "See All",
+    back: "Back",
+    playStoreWarn: "Detailed analysis is limited for Google Play due to restrictions.",
+    topics: { bug: "Bug", ads: "Ads", perf: "Performance", money: "Pricing" },
+    sentiment: { pos: "Positive", neg: "Negative", neu: "Neutral" },
+    filterTitle: "Date Filter",
+    trendChart: "Rating Trend",
+    distChart: "Star Distribution",
+    applyFilter: "Apply",
+    presets: { week: "Last Week", month: "Last Month", year: "Last Year", all: "All Time" }
+  }
+};
+
+const STOP_WORDS = {
+  tr: ['ve', 'bir', 'bu', 'da', 'de', 'için', 'ile', 'çok', 'ama', 'fakat', 'daha', 'en', 'kadar', 'olarak', 'ben', 'sen', 'o', 'biz', 'siz', 'onlar', 'mi', 'mı', 'mu', 'mü', 'uygulama', 'app'],
+  en: ['and', 'the', 'a', 'an', 'is', 'to', 'in', 'of', 'for', 'it', 'this', 'that', 'with', 'but', 'on', 'are', 'was', 'very', 'so', 'my', 'i', 'app', 'application']
+};
+
+const TOPIC_KEYWORDS = {
+  performance: ['hız', 'yavaş', 'donma', 'kasma', 'performans', 'slow', 'lag', 'freeze', 'fast', 'smooth'],
+  bug: ['hata', 'bug', 'açılmıyor', 'atıyor', 'kapanıyor', 'error', 'crash', 'close', 'open'],
+  monetization: ['para', 'ücret', 'abonelik', 'pahalı', 'bedava', 'money', 'price', 'subscription', 'expensive', 'free'],
+  ads: ['reklam', 'reklamlar', 'video', 'ads', 'advertisement', 'popup']
+};
 
 // --- YARDIMCI BİLEŞENLER ---
 
@@ -58,7 +134,7 @@ const StatCard = ({ title, value, subtext, icon: Icon, color = "blue" }) => {
   );
 };
 
-// --- CHART BİLEŞENLERİ ---
+// --- CHART BİLEŞENLERİ (YENİLENMİŞ) ---
 
 const TrendChart = ({ reviews }) => {
   const dailyData = useMemo(() => {
@@ -71,12 +147,12 @@ const TrendChart = ({ reviews }) => {
         groups[dateKey].sum += r.rating;
         groups[dateKey].count += 1;
       } catch (e) {
-        // Tarih hatası varsa atla
+        // Hata yok say
       }
     });
     
     return Object.values(groups)
-      .map(g => ({ date: g.date, avg: g.sum / g.count }))
+      .map(g => ({ date: g.date, avg: g.sum / g.count, count: g.count }))
       .sort((a, b) => new Date(a.date) - new Date(b.date));
   }, [reviews]);
 
@@ -84,48 +160,129 @@ const TrendChart = ({ reviews }) => {
 
   const width = 100;
   const height = 40;
+  const padding = 5;
   const maxAvg = 5;
   const minAvg = 1;
   
-  const points = dailyData.map((d, i) => {
-    const x = (i / (dailyData.length - 1)) * width;
-    const y = height - ((d.avg - minAvg) / (maxAvg - minAvg)) * height;
-    return `${x},${y}`;
-  }).join(' ');
+  // Koordinat Hesaplama
+  const getX = (index) => (index / (dailyData.length - 1)) * width;
+  const getY = (avg) => height - ((avg - minAvg) / (maxAvg - minAvg)) * height;
+
+  const points = dailyData.map((d, i) => `${getX(i)},${getY(d.avg)}`).join(' ');
+  
+  // Area Chart için path (alt köşeleri kapatarak)
+  const areaPath = `${points} ${width},${height} 0,${height}`;
 
   return (
-    <div className="w-full h-40">
-      <svg viewBox={`0 0 ${width} ${height + 10}`} className="w-full h-full overflow-visible">
-        <line x1="0" y1="0" x2="100" y2="0" stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="2" />
-        <line x1="0" y1={height/2} x2="100" y2={height/2} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="2" />
-        <line x1="0" y1={height} x2="100" y2={height} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="2" />
-        <polyline fill="none" stroke="#3b82f6" strokeWidth="1.5" points={points} vectorEffect="non-scaling-stroke" />
+    <div className="w-full h-40 group relative">
+      <svg viewBox={`0 -2 ${width} ${height + 15}`} className="w-full h-full overflow-visible">
+        <defs>
+          <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+
+        {/* Grid Lines (1'den 5'e kadar) */}
+        {[1, 2, 3, 4, 5].map((val) => (
+          <g key={val}>
+            <line 
+              x1="0" y1={getY(val)} 
+              x2={width} y2={getY(val)} 
+              stroke="#f1f5f9" strokeWidth="0.5" 
+            />
+            {/* Y-Axis Labels */}
+            <text x="-2" y={getY(val) + 1} fontSize="3" fill="#cbd5e1" textAnchor="end">{val}</text>
+          </g>
+        ))}
+
+        {/* Area Fill */}
+        <polygon points={areaPath} fill="url(#lineGradient)" />
+
+        {/* Main Line */}
+        <polyline 
+          fill="none" 
+          stroke="#3b82f6" 
+          strokeWidth="1.2" 
+          points={points} 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke" 
+        />
+
+        {/* Dots with Tooltip Logic */}
         {dailyData.map((d, i) => {
-             const x = (i / (dailyData.length - 1)) * width;
-             const y = height - ((d.avg - minAvg) / (maxAvg - minAvg)) * height;
-             return <circle key={i} cx={x} cy={y} r="1.5" fill="white" stroke="#3b82f6" strokeWidth="1"><title>{d.date}: {d.avg.toFixed(1)}</title></circle>
+             const x = getX(i);
+             const y = getY(d.avg);
+             return (
+               <g key={i} className="group/dot">
+                 <circle cx={x} cy={y} r="1.5" fill="white" stroke="#3b82f6" strokeWidth="1" className="cursor-pointer hover:r-2.5 transition-all duration-200" />
+                 {/* Simple SVG Tooltip */}
+                 <title>{`${d.date}\nOrtalama: ${d.avg.toFixed(1)}\nYorum: ${d.count}`}</title>
+               </g>
+             )
         })}
-        <text x="0" y={height + 8} fontSize="4" fill="#94a3b8">{dailyData[0].date}</text>
-        <text x="100" y={height + 8} fontSize="4" fill="#94a3b8" textAnchor="end">{dailyData[dailyData.length-1].date}</text>
+        
+        {/* X-Axis Labels (Start & End) */}
+        <text x="0" y={height + 8} fontSize="3" fill="#94a3b8">{dailyData[0].date}</text>
+        <text x={width} y={height + 8} fontSize="3" fill="#94a3b8" textAnchor="end">{dailyData[dailyData.length-1].date}</text>
       </svg>
     </div>
   );
 };
 
 const DistributionChart = ({ reviews }) => {
-  const counts = [0, 0, 0, 0, 0, 0];
-  if (reviews) reviews.forEach(r => counts[r.rating]++);
+  const counts = [0, 0, 0, 0, 0, 0]; // Index 0 boş, 1-5 arası yıldızlar
+  let total = 0;
+  
+  if (reviews && reviews.length > 0) {
+    reviews.forEach(r => {
+      if (r.rating >= 1 && r.rating <= 5) {
+        counts[r.rating]++;
+        total++;
+      }
+    });
+  }
+  
+  // Max değeri hesaplarken 0 olmamasına dikkat et
   const max = Math.max(...counts.slice(1)) || 1;
 
+  const getBarColor = (star) => {
+    if (star >= 4) return 'bg-emerald-500';
+    if (star === 3) return 'bg-yellow-400';
+    return 'bg-rose-500';
+  };
+
   return (
-    <div className="h-40 flex items-end justify-between gap-2 px-2">
-      {[1, 2, 3, 4, 5].map(star => (
-        <div key={star} className="flex flex-col items-center gap-1 w-full group">
-           <div className="text-xs font-bold text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity mb-1">{counts[star]}</div>
-           <div className={`w-full rounded-t-lg transition-all duration-500 ${star >= 4 ? 'bg-green-400' : star <= 2 ? 'bg-red-400' : 'bg-gray-300'}`} style={{ height: `${(counts[star] / max) * 100}%`, minHeight: '4px' }}></div>
-           <div className="text-xs font-bold text-gray-600 flex items-center gap-0.5">{star} <Star className="w-2.5 h-2.5 fill-gray-600 text-gray-600" /></div>
-        </div>
-      ))}
+    <div className="h-40 flex items-end justify-between gap-3 px-2 pt-6">
+      {[1, 2, 3, 4, 5].map(star => {
+        const percentage = total > 0 ? Math.round((counts[star] / total) * 100) : 0;
+        const heightPercent = (counts[star] / max) * 100;
+        
+        return (
+          <div key={star} className="flex flex-col items-center gap-2 w-full group cursor-help relative h-full justify-end">
+             {/* Tooltip (Hover ile görünür) */}
+             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+               {counts[star]} Review ({percentage}%)
+               <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45"></div>
+             </div>
+
+             {/* Bar Container (Gray Background) */}
+             <div className="w-full bg-slate-100 rounded-t-md relative h-full flex items-end overflow-hidden hover:bg-slate-200 transition-colors">
+               {/* Colored Bar */}
+               <div 
+                 className={`w-full ${getBarColor(star)} transition-all duration-700 ease-out rounded-t-sm`} 
+                 style={{ height: `${heightPercent}%` }}
+               ></div>
+             </div>
+             
+             {/* Label */}
+             <div className="text-xs font-bold text-slate-500 flex items-center gap-0.5">
+               {star} <Star className="w-2.5 h-2.5 text-slate-400" />
+             </div>
+          </div>
+        )
+      })}
     </div>
   );
 };
@@ -219,53 +376,6 @@ const ReviewResponseCard = ({ review, lang }) => {
   );
 };
 
-// --- SABİTLER ---
-
-const TRANSLATIONS = {
-  tr: {
-    heroTitle: "Uygulama İnceleme Analizi",
-    heroSubtitle: "Yapay zeka destekli içgörüler ile kullanıcı geri bildirimlerini analiz edin.",
-    placeholder: "App Store veya Play Store linki yapıştırın...",
-    analyzeBtn: "Analiz Et",
-    loading: "Veriler çekiliyor...",
-    errorGeneric: "Veri alınamadı. Proxy sorunu olabilir, lütfen tekrar deneyin.",
-    summary: "Analiz Özeti",
-    recommendations: "Öneriler",
-    sentimentDist: "Duygu Dağılımı",
-    recentReviews: "Son Yorumlar",
-    allReviews: "Tüm Yorumlar",
-    seeAll: "Tümünü Gör",
-    back: "Geri",
-    playStoreWarn: "Google Play kısıtlamaları nedeniyle detaylı analiz sınırlıdır.",
-    topics: { bug: "Hata", ads: "Reklam", perf: "Performans", money: "Fiyat" },
-    sentiment: { pos: "Olumlu", neg: "Olumsuz", neu: "Nötr" },
-    filterTitle: "Tarih Filtresi",
-    trendChart: "Puan Trendi",
-    distChart: "Yıldız Dağılımı"
-  },
-  en: {
-    heroTitle: "App Review Analytics",
-    heroSubtitle: "Analyze user feedback with AI-powered insights.",
-    placeholder: "Paste App Store or Play Store link...",
-    analyzeBtn: "Analyze",
-    loading: "Fetching data...",
-    errorGeneric: "Failed to fetch data. Please try again.",
-    summary: "Analysis Summary",
-    recommendations: "Recommendations",
-    sentimentDist: "Sentiment Distribution",
-    recentReviews: "Recent Reviews",
-    allReviews: "All Reviews",
-    seeAll: "See All",
-    back: "Back",
-    playStoreWarn: "Detailed analysis is limited for Google Play due to restrictions.",
-    topics: { bug: "Bug", ads: "Ads", perf: "Performance", money: "Pricing" },
-    sentiment: { pos: "Positive", neg: "Negative", neu: "Neutral" },
-    filterTitle: "Date Filter",
-    trendChart: "Rating Trend",
-    distChart: "Star Distribution"
-  }
-};
-
 // --- ANA UYGULAMA ---
 
 export default function AppAnalysis() {
@@ -275,17 +385,22 @@ export default function AppAnalysis() {
   const [error, setError] = useState(null);
   const [appData, setAppData] = useState(null);
   const [reviews, setReviews] = useState([]);
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  
+  // Filter States
+  const [searchCountry, setSearchCountry] = useState('tr'); // Varsayılan TR
+  const [uiDateRange, setUiDateRange] = useState({ start: '', end: '' }); // Input değerleri
+  const [activeDateRange, setActiveDateRange] = useState({ start: '', end: '' }); // Aktif filtre
   const [filteredReviews, setFilteredReviews] = useState([]);
+  
   const [analysis, setAnalysis] = useState(null);
   const [showAllReviews, setShowAllReviews] = useState(false);
 
   const t = TRANSLATIONS[lang];
 
-  // YENİ: Gelişmiş Proxy ve Veri Çekme Fonksiyonu
+  // Proxy
   const fetchSmart = async (targetUrl) => {
     const proxies = [
-      { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, type: 'raw' }, // Daha stabil
+      { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, type: 'raw' },
       { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, type: 'json_wrapper' },
       { url: `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, type: 'raw' },
       { url: `https://thingproxy.freeboard.io/fetch/${targetUrl}`, type: 'raw' }
@@ -299,19 +414,16 @@ export default function AppAnalysis() {
         let data;
         if (proxy.type === 'json_wrapper') {
           const wrapper = await res.json();
-          // AllOrigins içeriği string olarak döndürür, onu tekrar parse etmeliyiz
           if (wrapper.contents) {
             try {
               data = JSON.parse(wrapper.contents);
             } catch (e) {
-              data = wrapper.contents; // JSON değilse text olarak al
+              data = wrapper.contents;
             }
           } else {
             throw new Error("AllOrigins content empty");
           }
         } else {
-          // Raw proxy'ler direkt JSON veya Text döner
-          // GÜVENLİK: İçerik tipi ne olursa olsun JSON olarak parse etmeyi dene, olmazsa text olarak al.
           const text = await res.text();
           try {
             data = JSON.parse(text);
@@ -320,9 +432,7 @@ export default function AppAnalysis() {
           }
         }
         
-        // Eğer veri boşsa veya hata içeriyorsa bir sonraki proxye geçmek için hata fırlatılabilir
         if (!data) throw new Error("Empty response");
-        
         return data;
       } catch (e) {
         console.warn(`Proxy failed: ${proxy.url}`, e);
@@ -363,7 +473,10 @@ export default function AppAnalysis() {
     setFilteredReviews([]);
     setAnalysis(null);
     setShowAllReviews(false);
-    setDateRange({ start: '', end: '' }); 
+    
+    // Filtreleri sıfırla
+    setUiDateRange({ start: '', end: '' });
+    setActiveDateRange({ start: '', end: '' });
 
     try {
       let platform = '', id = '';
@@ -379,23 +492,21 @@ export default function AppAnalysis() {
       if (!id) throw new Error("Invalid ID");
 
       if (platform === 'ios') {
-        // 1. App Info
-        const lookupUrl = `https://itunes.apple.com/lookup?id=${id}`;
+        const lookupUrl = `https://itunes.apple.com/lookup?id=${id}&country=${searchCountry}`; // Seçili ülke ile ara
         const json = await fetchSmart(lookupUrl);
         
-        // GÜVENLİK: JSON yapısını kontrol et
         if (!json || typeof json !== 'object' || !json.results || !Array.isArray(json.results) || json.results.length === 0) { 
             throw new Error("App Not Found or Invalid Data Structure"); 
         }
         
         const info = json.results[0];
 
-        // 2. Reviews - Country Fallback Logic
-        // Önce TR dene, veri yoksa US dene
-        let cleanReviews = await fetchReviewsForCountry(id, 'tr');
+        // Seçili ülke için yorumları çek
+        let cleanReviews = await fetchReviewsForCountry(id, searchCountry);
         
-        if (cleanReviews.length === 0) {
-            console.log("TR store has no reviews, falling back to US store...");
+        // Eğer seçili ülkede yorum yoksa ve ülke 'us' değilse, 'us' yedeğini dene
+        if (cleanReviews.length === 0 && searchCountry !== 'us') {
+            console.log("Selected store has no reviews, falling back to US store...");
             cleanReviews = await fetchReviewsForCountry(id, 'us');
         }
 
@@ -409,13 +520,14 @@ export default function AppAnalysis() {
           price: info.formattedPrice,
           genre: info.primaryGenreName,
           url: info.trackViewUrl,
-          platform: 'ios'
+          platform: 'ios',
+          country: searchCountry
         });
         setReviews(cleanReviews);
         setFilteredReviews(cleanReviews);
 
       } else {
-        // Android Simple Scrape (Basic Info Only)
+        // Android
         const playUrl = `https://play.google.com/store/apps/details?id=${id}&hl=${lang}`;
         const html = await fetchSmart(playUrl);
 
@@ -448,7 +560,25 @@ export default function AppAnalysis() {
     }
   };
 
-  // --- LOGIC: FILTER & ANALYZE ---
+  // --- FILTRELEME FONKSİYONLARI ---
+
+  const handleApplyFilter = () => {
+    setActiveDateRange(uiDateRange);
+  };
+
+  const setPresetDate = (days) => {
+    const end = new Date();
+    const start = new Date();
+    if (days === 'all') {
+      setUiDateRange({ start: '', end: '' });
+      return;
+    }
+    start.setDate(end.getDate() - days);
+    setUiDateRange({
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0]
+    });
+  };
   
   useEffect(() => {
     if (!reviews.length) {
@@ -456,14 +586,14 @@ export default function AppAnalysis() {
       return;
     }
     let filtered = [...reviews];
-    if (dateRange.start) filtered = filtered.filter(r => new Date(r.rawDate) >= new Date(dateRange.start));
-    if (dateRange.end) {
-      const endDate = new Date(dateRange.end);
+    if (activeDateRange.start) filtered = filtered.filter(r => new Date(r.rawDate) >= new Date(activeDateRange.start));
+    if (activeDateRange.end) {
+      const endDate = new Date(activeDateRange.end);
       endDate.setHours(23, 59, 59, 999);
       filtered = filtered.filter(r => new Date(r.rawDate) <= endDate);
     }
     setFilteredReviews(filtered);
-  }, [dateRange, reviews]);
+  }, [activeDateRange, reviews]);
 
   const analyzeReviews = (list, language, globalStats = { globalAvg: 0, globalCount: 0 }) => {
     if (!list || list.length === 0) return null;
@@ -535,7 +665,7 @@ export default function AppAnalysis() {
     } else {
         setAnalysis(null);
     }
-  }, [lang, filteredReviews, appData]); // appData dependency eklendi
+  }, [lang, filteredReviews, appData]);
 
   // --- RENDER ---
   return (
@@ -553,8 +683,20 @@ export default function AppAnalysis() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className={`max-w-3xl mx-auto transition-all duration-500 ${appData ? 'mb-8' : 'mb-20'}`}>
           {!appData && <div className="text-center py-10"><h1 className="text-4xl font-extrabold text-slate-900 mb-4">{t.heroTitle}</h1><p className="text-slate-500">{t.heroSubtitle}</p></div>}
-          <div className="relative flex items-center bg-white rounded-xl shadow-xl overflow-hidden p-1">
-            <div className="pl-4 text-gray-400"><Search className="w-5 h-5" /></div>
+          <div className="relative flex items-center bg-white rounded-xl shadow-xl overflow-hidden p-1 gap-1">
+            {/* Ülke Seçimi */}
+            <div className="pl-3 flex items-center">
+                <select 
+                  value={searchCountry}
+                  onChange={(e) => setSearchCountry(e.target.value)}
+                  className="bg-gray-100 text-gray-700 text-sm font-medium py-2 px-2 rounded-lg outline-none cursor-pointer border-r border-transparent hover:bg-gray-200 transition-colors"
+                >
+                  {COUNTRIES.map(c => (
+                    <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+                  ))}
+                </select>
+            </div>
+            
             <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t.placeholder} className="flex-1 px-4 py-4 outline-none text-gray-700 placeholder-gray-400 text-sm md:text-base bg-transparent" />
             <button onClick={handleAnalyze} disabled={loading || !url} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center gap-2 shadow-md disabled:opacity-50">{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t.analyzeBtn}</button>
           </div>
@@ -582,6 +724,7 @@ export default function AppAnalysis() {
                           <div className="flex flex-col text-sm"><StarRating rating={appData.rating || 0} /><span className="text-gray-400 mt-0.5">{appData.count?.toLocaleString()} Ratings</span></div>
                        </div>
                        <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1 ${appData.platform === 'android' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-slate-100 text-slate-700 border-slate-200'}`}><Smartphone className="w-3 h-3" /> {appData.platform === 'android' ? 'Android' : 'iOS'}</div>
+                       <div className="px-3 py-1 rounded-full text-xs font-bold border bg-blue-50 text-blue-700 border-blue-100 flex items-center gap-1 uppercase"><Globe className="w-3 h-3" /> {appData.country || 'US'}</div>
                     </div>
                   </div>
                </div>
@@ -590,15 +733,26 @@ export default function AppAnalysis() {
             {appData.platform === 'ios' && (
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                  <div className="md:col-span-12">
-                   <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-wrap items-center gap-4">
-                     <div className="flex items-center gap-2 text-gray-700 font-bold text-sm"><Calendar className="w-5 h-5 text-blue-500" /> {t.filterTitle}</div>
-                     <div className="flex items-center gap-2">
-                       <input type="date" className="px-3 py-2 border border-gray-200 rounded-lg text-sm" value={dateRange.start} onChange={(e) => setDateRange({...dateRange, start: e.target.value})} />
-                       <span className="text-gray-400">-</span>
-                       <input type="date" className="px-3 py-2 border border-gray-200 rounded-lg text-sm" value={dateRange.end} onChange={(e) => setDateRange({...dateRange, end: e.target.value})} />
+                   <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center gap-4 justify-between">
+                     
+                     <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-center gap-2 text-gray-700 font-bold text-sm mr-2"><Calendar className="w-5 h-5 text-blue-500" /> {t.filterTitle}</div>
+                        <button onClick={() => setPresetDate(7)} className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">{t.presets.week}</button>
+                        <button onClick={() => setPresetDate(30)} className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">{t.presets.month}</button>
+                        <button onClick={() => setPresetDate(365)} className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">{t.presets.year}</button>
+                        <button onClick={() => setPresetDate('all')} className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">{t.presets.all}</button>
                      </div>
-                     <div className="ml-auto text-xs text-gray-500">Showing {filteredReviews.length} reviews</div>
+
+                     <div className="flex items-center gap-2 w-full md:w-auto">
+                       <input type="date" className="px-3 py-2 border border-gray-200 rounded-lg text-sm w-full md:w-auto" value={uiDateRange.start} onChange={(e) => setUiDateRange({...uiDateRange, start: e.target.value})} />
+                       <span className="text-gray-400">-</span>
+                       <input type="date" className="px-3 py-2 border border-gray-200 rounded-lg text-sm w-full md:w-auto" value={uiDateRange.end} onChange={(e) => setUiDateRange({...uiDateRange, end: e.target.value})} />
+                       <button onClick={handleApplyFilter} className="ml-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1">
+                         <Filter className="w-3 h-3" /> {t.applyFilter}
+                       </button>
+                     </div>
                    </div>
+                   <div className="text-right mt-2 text-xs text-gray-500 px-2">Showing {filteredReviews.length} reviews</div>
                  </div>
                  <div className="md:col-span-8 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
                     <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-blue-500" /> {t.trendChart}</h4>
